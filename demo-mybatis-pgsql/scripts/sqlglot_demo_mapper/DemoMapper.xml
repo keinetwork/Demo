@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    scripts/sqlglot_expand_stars.py 데모 전용 샘플 매퍼.
+    실제 서비스에서 쓰는 src/main/resources/mapper/UserMapper.xml과는 별개의 파일이며,
+    JSqlParser 기반 MapperStarExpander(Java)가 "서브쿼리라 스킵"하는 케이스를
+    sqlglot이 어떻게 처리하는지 보여주기 위해 일부러 까다로운 쿼리들을 모아뒀다.
+-->
+<mapper namespace="com.example.demo.demo.DemoMapper">
+
+    <!-- 케이스 1: 가장 단순한 bare '*' -->
+    <select id="simpleStar" resultType="com.example.demo.domain.User">
+        SELECT * FROM users ORDER BY id
+    </select>
+
+    <!-- 케이스 2: alias.* + 파라미터 바인딩 -->
+    <select id="aliasStar" parameterType="long" resultType="com.example.demo.domain.User">
+        SELECT u.* FROM users u WHERE u.id = #{id}
+    </select>
+
+    <!-- 케이스 3: 같은 테이블을 서로 다른 alias로 self-join하며 양쪽 다 '*' -
+         alias별로 스코프가 분리되어야 a.*와 b.*가 서로 다른 컬럼 세트로 정확히 펼쳐지는지 확인 -->
+    <select id="selfJoinStar" parameterType="long" resultType="map">
+        SELECT a.*, b.*
+        FROM users a
+        JOIN users b ON a.id != b.id
+        WHERE a.id = #{id}
+    </select>
+
+    <!-- 케이스 4: CTE(WITH) 안팎에서 각각 '*' - JSqlParser 기반 도구는 FROM절이 서브쿼리/CTE면
+         무조건 스킵하지만, sqlglot의 qualify(expand_stars=True)는 CTE의 파생 컬럼까지 추적해 전개한다 -->
+    <select id="cteStar" parameterType="map" resultType="map">
+        WITH recent AS (
+            SELECT * FROM users WHERE created_at > #{since}
+        )
+        SELECT * FROM recent ORDER BY id
+    </select>
+
+    <!-- 케이스 5: 동적 SQL(<if>)이 섞인 경우 - 조건부 구조가 깨질 수 있어 자동 변환 대상에서 제외되어야 함 -->
+    <select id="dynamicStar" parameterType="map" resultType="com.example.demo.domain.User">
+        SELECT * FROM users
+        <where>
+            <if test="name != null">
+                AND name = #{name}
+            </if>
+        </where>
+        ORDER BY id
+    </select>
+
+</mapper>

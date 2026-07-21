@@ -13,7 +13,26 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/expression/Alias.java\" -o /tmp/jsqlparser_src/Alias.java)",
       "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/schema/Table.java\" -o /tmp/jsqlparser_src/Table.java)",
       "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/parser/CCJSqlParserUtil.java\" -o /tmp/jsqlparser_src/CCJSqlParserUtil.java)",
-      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/schema/Column.java\" -o /tmp/jsqlparser_src/Column.java)"
+      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/schema/Column.java\" -o /tmp/jsqlparser_src/Column.java)",
+      "Bash(python3 -V)",
+      "Bash(python3 -m pip --version)",
+      "Bash(python3 -c \"import sqlglot\")",
+      "Bash(python3 -c \"import psycopg2\")",
+      "Bash(python3 -m ensurepip --version)",
+      "Bash(apt list *)",
+      "Bash(sudo -n true)",
+      "Bash(curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py)",
+      "Bash(python3 /tmp/get-pip.py --user)",
+      "Bash(python3 -m venv /tmp/sqlglot-demo-venv)",
+      "Bash(rm -rf /tmp/sqlglot-demo-venv)",
+      "Bash(python3 -m venv --without-pip /tmp/sqlglot-demo-venv)",
+      "Read(//tmp/sqlglot-demo-venv/bin/**)",
+      "Bash(/tmp/sqlglot-demo-venv/bin/python3 /tmp/get-pip.py)",
+      "Bash(/tmp/sqlglot-demo-venv/bin/python3 -m pip install --quiet sqlglot psycopg2-binary)",
+      "Bash(/tmp/sqlglot-demo-venv/bin/python3 -c \"import sqlglot, psycopg2; print\\('sqlglot', sqlglot.__version__\\); print\\('psycopg2', psycopg2.__version__\\)\")",
+      "Bash(/tmp/sqlglot-demo-venv/bin/python3 *)",
+      "Bash(cp scripts/sqlglot_demo_mapper/DemoMapper.xml /tmp/DemoMapper.xml.orig)",
+      "Read(//tmp/**)"
     ]
   }
 }
