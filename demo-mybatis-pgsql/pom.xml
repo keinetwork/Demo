@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- spring-boot-starter-parent: 스프링 부트가 검증한 의존성 버전 조합(dependency management)을
+         물려받아, 아래 <dependencies>에서 각 라이브러리 버전을 일일이 명시하지 않아도 되게 해준다.
+         (JSqlParser처럼 스프링 부트가 관리하지 않는 라이브러리만 버전을 직접 명시) -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.4</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.example</groupId>
+    <artifactId>demo-mybatis-pgsql</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>demo-mybatis-pgsql</name>
+    <description>Spring Boot + MyBatis + PostgreSQL 데모 프로젝트</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <!-- mybatis-spring-boot-starter는 spring-boot-starter-parent의 관리 대상이 아니라서
+             버전을 직접 지정해야 한다 -->
+        <mybatis.starter.version>3.0.3</mybatis.starter.version>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Boot Web: 내장 톰캣 + Spring MVC. UserController의 @RestController, @GetMapping 등이 이걸로 동작 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- MyBatis: UserMapper 인터페이스 <-> UserMapper.xml SQL을 연결해주는 스프링 부트 스타터.
+             DemoApplication의 @MapperScan과 함께 동작 -->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>${mybatis.starter.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL JDBC 드라이버. scope=runtime: 컴파일 시점에는 필요 없고 실행 시점에만 클래스패스에 있으면 됨 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- JSqlParser: 매퍼 XML의 SELECT * / alias.* 컬럼 전개 도구(MapperStarExpander) 전용.
+             scope=provided이므로 컴파일에는 쓰이지만 spring-boot-maven-plugin이 만드는 실행 가능 fat jar에는
+             포함되지 않는다(아래 build.plugins의 excludes 참고) -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+            <version>4.9</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Bean Validation(Jakarta Validation) 구현체. UserRequest의 @NotBlank/@Email 애노테이션 처리에 필요 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Lombok: @Data/@Builder/@RequiredArgsConstructor 등 보일러플레이트(getter/setter/생성자) 자동 생성.
+             optional=true: 이 라이브러리를 사용하는 다른 프로젝트가 이 프로젝트를 의존할 때 lombok까지
+             전이(transitive)되지 않도록 함 -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 테스트 스타터: JUnit 5, Mockito, spring-test 등을 묶어서 제공. scope=test로 운영 빌드에서 제외 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- `mvn spring-boot:run` / `./mvnw spring-boot:run`으로 앱을 바로 실행하거나,
+                 `mvn package`로 실행 가능한 fat jar(모든 의존성 포함)를 만들어주는 플러그인 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <!-- 컴파일 타임 애노테이션 처리용 라이브러리라 실행 시 불필요 -->
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                        <!-- MapperStarExpander 도구 전용 라이브러리라 앱 실행 시 불필요 (scope=provided라 사실 기본적으로도
+                             fat jar에서 빠지지만, 의도를 명시적으로 드러내기 위해 명시적으로도 제외) -->
+                        <exclude>
+                            <groupId>com.github.jsqlparser</groupId>
+                            <artifactId>jsqlparser</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- MapperStarExpander(매퍼 XML의 SELECT * 전개 도구)를 커맨드라인에서 바로 실행하기 위한 플러그인.
+                 사용법: mvn compile exec:java -Dexec.mainClass=com.example.demo.tool.MapperStarExpander -Dexec.args="..." -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.4.1</version>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

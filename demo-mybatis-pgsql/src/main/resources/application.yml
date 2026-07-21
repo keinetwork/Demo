@@ -1,0 +1,31 @@
+# 내장 톰캣이 요청을 받는 포트. http://localhost:8080/api/users 형태로 접근.
+server:
+  port: 8080
+
+spring:
+  # HikariCP(스프링 부트 기본 커넥션 풀)가 이 정보로 PostgreSQL에 접속한다.
+  # docker-compose.yml의 POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD와 반드시 일치해야 하며,
+  # 값이 안 맞으면 "password authentication failed" 에러(PSQLException)로 앱이 뜨지 않는다.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ujudb   # jdbc:postgresql://호스트:포트/DB명
+    username: ujutech
+    password: ujupwd
+    driver-class-name: org.postgresql.Driver
+
+mybatis:
+  # UserMapper 인터페이스와 짝을 이루는 SQL 정의 XML 위치. classpath 기준이므로
+  # 실제 파일 경로는 src/main/resources/mapper/*.xml.
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    # true로 설정하면 DB 컬럼의 스네이크 케이스(created_at)를 자바 필드의 카멜 케이스(createdAt)로
+    # 자동 매핑해준다. 이 설정 덕분에 UserMapper.xml에서 <resultMap> 없이 resultType(VO)만으로
+    # 매핑이 가능하다.
+    map-underscore-to-camel-case: true
+    # 매퍼가 실행하는 실제 SQL과 바인딩 파라미터를 콘솔(표준출력)에 로그로 남긴다. 개발/디버깅 편의용이며,
+    # 운영 환경에서는 로그량이 늘어나므로 끄거나 별도 로거로 교체하는 것을 고려한다.
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    # 매퍼 패키지의 로그 레벨을 debug로 올려, MyBatis가 남기는 SQL 실행 로그가 보이도록 한다.
+    com.example.demo.mapper: debug

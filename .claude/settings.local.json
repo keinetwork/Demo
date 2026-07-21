@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PGPASSWORD=ujutech psql -h localhost -p 5432 -U ujutech -d ujudb -c \"SELECT 1;\")",
+      "Bash(PGPASSWORD=ujupwd psql -h localhost -p 5432 -U ujutech -d ujudb -c \"SELECT 1;\")",
+      "Bash(PGPASSWORD=ujutech psql *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:8080/api/users --max-time 5)",
+      "Bash(curl -s http://localhost:8080/api/users --max-time 5)",
+      "Bash(timeout 15 mvn -o dependency:get -Dartifact=com.github.jsqlparser:jsqlparser:4.9)",
+      "Bash(timeout 20 curl -sI https://repo1.maven.org/maven2/com/github/jsqlparser/jsqlparser/4.9/jsqlparser-4.9.jar)",
+      "Bash(./mvnw -v)",
+      "Bash(java -version)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/expression/Alias.java\" -o /tmp/jsqlparser_src/Alias.java)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/schema/Table.java\" -o /tmp/jsqlparser_src/Table.java)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/parser/CCJSqlParserUtil.java\" -o /tmp/jsqlparser_src/CCJSqlParserUtil.java)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/JSQLParser/JSqlParser/jsqlparser-4.9/src/main/java/net/sf/jsqlparser/schema/Column.java\" -o /tmp/jsqlparser_src/Column.java)"
+    ]
+  }
+}
