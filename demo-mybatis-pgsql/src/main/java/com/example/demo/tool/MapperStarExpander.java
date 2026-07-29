@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -103,7 +104,7 @@ public class MapperStarExpander {
                 List<Path> xmlFiles = files
                         .filter(p -> p.toString().endsWith(".xml"))
                         .sorted()
-                        .toList();
+                        .collect(Collectors.toList());
                 for (Path path : xmlFiles) {
                     processFile(path, conn, dryRun);
                 }
@@ -122,7 +123,7 @@ public class MapperStarExpander {
      */
     private static void processFile(Path path, Connection conn, boolean dryRun)
             throws IOException, SQLException {
-        String content = Files.readString(path, StandardCharsets.UTF_8);
+        String content = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
         Matcher matcher = SELECT_ELEMENT.matcher(content);
         StringBuilder result = new StringBuilder();
         int last = 0;
@@ -169,7 +170,7 @@ public class MapperStarExpander {
             filesChanged++;
             System.out.println((dryRun ? "[DRY-RUN:write] " : "[WRITE] ") + path);
             if (!dryRun) {
-                Files.writeString(path, result.toString(), StandardCharsets.UTF_8);
+                Files.write(path, result.toString().getBytes(StandardCharsets.UTF_8));
             }
         }
     }
@@ -190,7 +191,7 @@ public class MapperStarExpander {
         //         원래 텍스트는 순서대로 params 리스트에 보관해둔다 (나중에 역치환).
         List<String> params = new ArrayList<>();
         Matcher pm = PARAM_TOKEN.matcher(sql);
-        StringBuilder tmp = new StringBuilder();
+        StringBuffer tmp = new StringBuffer();
         int idx = 0;
         while (pm.find()) {
             params.add(pm.group());
@@ -203,19 +204,21 @@ public class MapperStarExpander {
         // 2단계: SQL 파싱. 이 프로젝트가 다루는 것은 단순 SELECT(PlainSelect)뿐이므로,
         //        UNION/INTERSECT 같은 SetOperationList나 WITH(CTE)가 섞인 복잡한 형태는 안전하게 건너뛴다.
         Statement statement = CCJSqlParserUtil.parse(placeholderSql);
-        if (!(statement instanceof PlainSelect plain)) {
+        if (!(statement instanceof PlainSelect)) {
             System.out.println("[SKIP:not-plain-select] " + path + " #" + id
                     + " - UNION/서브쿼리 등 단순 SELECT가 아님, 수동 처리 필요");
             return null;
         }
+        PlainSelect plain = (PlainSelect) statement;
 
         // 3단계: FROM절 기준 테이블. 서브쿼리(예: FROM (SELECT ...) t)는 컬럼 목록을 알 수 없으므로 건너뜀.
         FromItem fromItem = plain.getFromItem();
-        if (!(fromItem instanceof Table fromTable)) {
+        if (!(fromItem instanceof Table)) {
             System.out.println("[SKIP:subquery-from] " + path + " #" + id
                     + " - FROM절에 서브쿼리, 수동 처리 필요");
             return null;
         }
+        Table fromTable = (Table) fromItem;
 
         // alias(또는 alias가 없으면 테이블명 자체) -> 실제 테이블명 매핑. AllTableColumns(예: m.*)의 'm'이
         // 진짜 테이블명인지 alias인지는 이 매핑을 봐야 알 수 있다.
@@ -227,11 +230,12 @@ public class MapperStarExpander {
         if (plain.getJoins() != null) {
             for (Join join : plain.getJoins()) {
                 FromItem right = join.getRightItem();
-                if (!(right instanceof Table joinTable)) {
+                if (!(right instanceof Table)) {
                     System.out.println("[SKIP:subquery-join] " + path + " #" + id
                             + " - JOIN 대상이 서브쿼리, 수동 처리 필요");
                     return null;
                 }
+                Table joinTable = (Table) right;
                 aliasToTable.put(aliasOrName(joinTable), joinTable.getName());
             }
         }
@@ -242,8 +246,9 @@ public class MapperStarExpander {
         boolean anyExpanded = false;
         for (SelectItem<?> item : plain.getSelectItems()) {
             Expression expr = item.getExpression();
-            if (expr instanceof AllTableColumns atc) {
+            if (expr instanceof AllTableColumns) {
                 // "alias.*" 형태 (AllTableColumns는 AllColumns의 하위 타입이라 이 분기를 먼저 검사해야 함)
+                AllTableColumns atc = (AllTableColumns) expr;
                 String alias = atc.getTable().getName();
                 String realTable = aliasToTable.get(alias);
                 if (realTable == null) {

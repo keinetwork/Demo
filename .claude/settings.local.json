@@ -32,7 +32,32 @@
       "Bash(/tmp/sqlglot-demo-venv/bin/python3 -c \"import sqlglot, psycopg2; print\\('sqlglot', sqlglot.__version__\\); print\\('psycopg2', psycopg2.__version__\\)\")",
       "Bash(/tmp/sqlglot-demo-venv/bin/python3 *)",
       "Bash(cp scripts/sqlglot_demo_mapper/DemoMapper.xml /tmp/DemoMapper.xml.orig)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(mvn -q -o compile)",
+      "Bash(mvn -q compile)",
+      "Bash(unzip -l \"/mnt/c/Users/ujutech/.m2/repository/org/mybatis/spring/boot/mybatis-spring-boot-autoconfigure/3.0.3/mybatis-spring-boot-autoconfigure-3.0.3.jar\")",
+      "Bash(jar tf *)",
+      "Bash(python3 -c ' *)",
+      "Read(//mnt/d/DevTools/mvn/**)",
+      "Bash(find / -maxdepth 4 -iname \"apache-maven*\")",
+      "Skill(run)",
+      "Bash(/mnt/d/DevTools/Java/jdk-17.0.8/bin/java.exe -version)",
+      "Bash(netstat -tlnp)",
+      "Bash(PGPASSWORD=ujupwd psql -h 127.0.0.1 -p 5432 -U ujutech -d ujudb -c \"\\\\dt\")",
+      "Bash(PGPASSWORD=ujupwd psql -h 127.0.0.1 -p 5432 -U ujutech -d ujudb -c \"select column_name, data_type from information_schema.columns where table_name='users';\")",
+      "Bash(xargs -I{} sh -c 'echo ==={}===; cat {}')",
+      "Bash(PGPASSWORD=ujupwd psql *)",
+      "Read(//mnt/c/Users/ujutech/.m2/repository/org/springframework/boot/spring-boot-starter-parent/**)",
+      "Read(//mnt/c/Users/ujutech/.m2/repository/org/springframework/boot/spring-boot-dependencies/**)",
+      "Read(//mnt/c/Users/ujutech/.m2/repository/org/mybatis/spring/boot/mybatis-spring-boot-starter/**)",
+      "Bash(curl -sI --max-time 5 https://repo1.maven.org/maven2/)",
+      "Bash(/mnt/d/DevTools/Java/jdk-1.8.421/bin/java.exe -version)",
+      "Bash(apt-cache policy *)",
+      "Bash(mkdir -p /tmp/claude-1000/-mnt-c-repo-github-keinetwork-Demo-demo-mybatis-pgsql/0fb852a1-98a6-420f-8b95-c9f28567308a/scratchpad/jdk8)",
+      "Bash(curl -sL \"https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse?project=jdk\" -o jdk8.tar.gz)",
+      "Bash(break)",
+      "Bash(curl -s http://localhost:8080/api/users)",
+      "Bash(pkill -f \"spring-boot:run\")"
     ]
   }
 }
