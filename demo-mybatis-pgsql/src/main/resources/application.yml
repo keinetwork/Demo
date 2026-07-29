@@ -21,9 +21,10 @@ mybatis:
     # 자동 매핑해준다. 이 설정 덕분에 UserMapper.xml에서 <resultMap> 없이 resultType(VO)만으로
     # 매핑이 가능하다.
     map-underscore-to-camel-case: true
-    # 매퍼가 실행하는 실제 SQL과 바인딩 파라미터를 콘솔(표준출력)에 로그로 남긴다. 개발/디버깅 편의용이며,
-    # 운영 환경에서는 로그량이 늘어나므로 끄거나 별도 로거로 교체하는 것을 고려한다.
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    # 매퍼가 실행하는 실제 SQL과 바인딩 파라미터를 로그로 남긴다. StdOutImpl은 System.out으로 직접 찍어
+    # 로거 이름(=mapper statement id)이 붙지 않으므로, slf4j 구현으로 바꿔 각 로그 줄 앞에
+    # "com.example.demo.mapper.UserMapper.findAll" 같은 mapper id가 표시되게 한다.
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 logging:
   level:

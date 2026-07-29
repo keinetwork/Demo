@@ -57,7 +57,22 @@
       "Bash(curl -sL \"https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse?project=jdk\" -o jdk8.tar.gz)",
       "Bash(break)",
       "Bash(curl -s http://localhost:8080/api/users)",
-      "Bash(pkill -f \"spring-boot:run\")"
+      "Bash(pkill -f \"spring-boot:run\")",
+      "Bash(git *)",
+      "Bash(xxd src/main/resources/ujutech26/ujutech26_decrypt-check.csv)",
+      "Bash(javap -p -c target/classes/com/example/demo/ujutech26/DecryptLeakCheckInterceptor.class)",
+      "Bash(command -v javap)",
+      "Bash(command -v java)",
+      "Bash(command -v mvn)",
+      "Read(//usr/lib/**)",
+      "Bash(find / -maxdepth 6 -iname \"javap\")",
+      "Bash(find / -iname \"mybatis-spring-*.jar\")",
+      "Bash(find / -iname \"spring-core-*.jar\")",
+      "Read(//home/ujutech/.m2/**)",
+      "Read(//root/**)",
+      "Read(//home/ujutech/.m2/repository/org/mybatis/spring/**)",
+      "Bash(jar xf *)",
+      "Bash(python3 -)"
     ]
   }
 }

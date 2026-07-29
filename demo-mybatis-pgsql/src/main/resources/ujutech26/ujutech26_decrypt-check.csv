@@ -1,0 +1,6 @@
+xml,id,passYn
+UserMapper.xml,findAll,N
+UserMapper.xml,findById,N
+UserMapper.xml,insert,N
+UserMapper.xml,update,N
+UserMapper.xml,deleteById,N
