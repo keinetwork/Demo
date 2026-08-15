@@ -11,19 +11,26 @@ Spring Boot + MyBatis + PostgreSQL 데모 프로젝트입니다.
 
 ## 프로젝트 구조
 ```
-src/main/java/com/example/demo
-├── DemoApplication.java        # 메인 클래스 (@MapperScan 포함)
-├── controller/UserController.java
-├── service/UserService.java
-├── mapper/UserMapper.java      # MyBatis 매퍼 인터페이스
-├── domain/User.java            # 엔티티
-├── domain/UserRequest.java     # 요청 DTO (유효성 검증)
-└── config/GlobalExceptionHandler.java
+backend/                       # Spring Boot + MyBatis 백엔드 (Maven 루트)
+├── pom.xml
+└── src/main/java/com/example/demo
+    ├── DemoApplication.java        # 메인 클래스 (@MapperScan 포함)
+    ├── controller/UserController.java
+    ├── service/UserService.java
+    ├── mapper/UserMapper.java      # MyBatis 매퍼 인터페이스
+    ├── domain/User.java            # 엔티티
+    ├── domain/UserRequest.java     # 요청 DTO (유효성 검증)
+    └── config/GlobalExceptionHandler.java
 
-src/main/resources
+backend/src/main/resources
 ├── application.yml             # DB 접속 정보, MyBatis 설정
 ├── schema.sql                  # 테이블 생성 스크립트 (계정/DB는 이미 생성됨, 아래 참고 섹션 참조)
 └── mapper/UserMapper.xml       # SQL 정의
+
+frontend/                      # Vue 프론트엔드 (npm 루트)
+├── package.json
+├── src/                       # App.vue, components/ 등
+└── public/
 ```
 
 ## 실행 방법
@@ -74,14 +81,22 @@ docker compose up -d
 ### 2. 스키마 생성 (테이블 생성)
 계정(`ujutech`)/DB(`ujudb`)는 이미 생성되어 있으므로, `schema.sql`은 테이블만 생성합니다.
 ```bash
-docker exec -i demo-pgsql psql -U ujutech -d ujudb < src/main/resources/schema.sql
+docker exec -i demo-pgsql psql -U ujutech -d ujudb < backend/src/main/resources/schema.sql
 ```
 
 > 새 환경에 처음 배포하는 경우, 먼저 [참고: 계정/DB 생성 스크립트](#참고-계정db-생성-스크립트-최초-1회-실행됨)를 `postgres` 슈퍼유저로 실행해 계정과 DB를 만든 뒤 위 명령을 실행하세요.
 
-### 3. 애플리케이션 실행
+### 3. 애플리케이션 실행 (백엔드)
 ```bash
+cd backend
 ./mvnw spring-boot:run
+```
+
+### 4. 프론트엔드 실행 (Vue)
+```bash
+cd frontend
+npm install
+npm run serve
 ```
 
 ## API 목록
@@ -123,11 +138,13 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO u
 ```
 
 ## 참고: 매퍼 SELECT * 전개 도구 (MapperStarExpander)
-`src/main/java/com/example/demo/tool/MapperStarExpander.java`는 매퍼 XML 안의 `SELECT *` / `alias.*`를
+`backend/src/main/java/com/example/demo/tool/MapperStarExpander.java`는 매퍼 XML 안의 `SELECT *` / `alias.*`를
 DB 메타데이터(`information_schema.columns`) 기준 실제 컬럼 목록으로 펼쳐 파일을 직접 고쳐 쓰는 변환 도구입니다.
-매퍼 statement id가 많은 프로젝트에서 일괄 변환할 때 사용합니다.
+매퍼 statement id가 많은 프로젝트에서 일괄 변환할 때 사용합니다. (아래 명령은 `backend/` 디렉터리에서 실행합니다.)
 
 ```bash
+cd backend
+
 # 1) dry-run으로 먼저 확인 (파일 미반영, 로그만 출력)
 mvn compile exec:java -Dexec.mainClass=com.example.demo.tool.MapperStarExpander \
     -Dexec.args="src/main/resources/mapper jdbc:postgresql://localhost:5432/ujudb ujutech ujupwd --dry-run"
@@ -142,7 +159,7 @@ mvn compile exec:java -Dexec.mainClass=com.example.demo.tool.MapperStarExpander 
   - FROM/JOIN에 서브쿼리가 있는 경우
   - alias 없이 여러 테이블을 조인하면서 `*`를 쓴 경우 (모호함)
   - SQL 파싱 실패
-- JSqlParser는 `pom.xml`에 `provided` 스코프로 추가되어 있어 런타임(fat jar)에는 포함되지 않습니다.
+- JSqlParser는 `backend/pom.xml`에 `provided` 스코프로 추가되어 있어 런타임(fat jar)에는 포함되지 않습니다.
 - 실행 전 반드시 git으로 변경 전 상태를 커밋해두고, dry-run 로그의 스킵 목록을 먼저 검토하세요.
 
 ## 참고

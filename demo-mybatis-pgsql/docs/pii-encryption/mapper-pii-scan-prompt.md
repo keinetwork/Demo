@@ -73,7 +73,7 @@ self-join 케이스는 실행 시점에도 함정이 있다: `resultType="map"`�
 컬럼마다 AS 별칭을 강제해야 한다"는 리뷰 신호로 읽어야 한다.
 
 ## 스캔 범위
-- 대상: `src/main/resources/**/*Mapper.xml` (실제 서비스에서 쓰는 프로덕션 mapper)
+- 대상: `backend/src/main/resources/**/*Mapper.xml` (실제 서비스에서 쓰는 프로덕션 mapper)
 - 제외: 데모/샘플/테스트 전용 mapper (파일 상단 주석에 "데모 전용", "샘플" 등으로 명시된 것,
   예: `scripts/sqlglot_demo_mapper/DemoMapper.xml` — 실제 쿼리 경로가 아니므로 제외하고,
   제외했다는 사실만 결과 하단에 별도로 남긴다)
@@ -142,16 +142,16 @@ sqlglot(순수 SQL 파서, DB 접속·인터넷 불필요)으로 직접 파싱�
 
 ```bash
 # PII 대상 컬럼만 (이 문서의 목록 = docs/pii-encryption/pii_targets.txt)
-python scripts/pii_mapper_scan.py --schema-sql src/main/resources/schema.sql --targets docs/pii-encryption/pii_targets.txt --out docs/pii-encryption/mapper_pii_columns.csv
+python scripts/pii_mapper_scan.py --schema-sql backend/src/main/resources/schema.sql --targets docs/pii-encryption/pii_targets.txt --out docs/pii-encryption/mapper_pii_columns.csv
 
 # 개인정보 구분 없이 mapper의 전체 컬럼을 뽑고 싶을 때 (--targets 생략)
-python scripts/pii_mapper_scan.py --schema-sql src/main/resources/schema.sql --out docs/pii-encryption/result.csv
+python scripts/pii_mapper_scan.py --schema-sql backend/src/main/resources/schema.sql --out docs/pii-encryption/result.csv
 
 # DDL이 table.sql/function.sql/sp.sql/view.sql처럼 여러 파일로 나뉘어 있으면 쉼표로 나열한다.
 # 순서대로 누적되므로 뷰가 참조하는 테이블 파일을 뷰 파일보다 앞에 둘 것(그래야 뷰의 SELECT *도
 # 펼쳐진다). sp.sql(프로시저 전용)은 안 넣어도 무방하다 - CALLABLE statement는 schema-sql과
 # 무관하게 별도 경로로 처리된다.
-python scripts/pii_mapper_scan.py --schema-sql table.sql,function.sql,sp.sql,view.sql --out docs/pii-encryption/result.csv
+python scripts/pii_mapper_scan.py --schema-sql backend/src/main/resources/table.sql,backend/src/main/resources/function.sql,backend/src/main/resources/sp.sql,backend/src/main/resources/view.sql --out docs/pii-encryption/result.csv
 ```
 
 `--targets`를 생략하면 대상 목록과 무관하게 발견되는 모든 컬럼을 담는다 - 새 mapper가 생겼을 때

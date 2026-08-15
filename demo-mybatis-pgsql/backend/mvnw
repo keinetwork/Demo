@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+MAVEN_VERSION=3.9.9
+DISTS_DIR="$HOME/.m2/wrapper/dists"
+MAVEN_HOME="$DISTS_DIR/apache-maven-$MAVEN_VERSION"
+MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz"
+
+if command -v mvn >/dev/null 2>&1; then
+    exec mvn "$@"
+fi
+
+if [ ! -x "$MAVEN_HOME/bin/mvn" ]; then
+    echo "[mvnw] Maven not found on PATH. Downloading Maven $MAVEN_VERSION ..."
+    mkdir -p "$DISTS_DIR"
+    TMP_TAR="$(mktemp -t maven-XXXXXX).tar.gz"
+    curl -fsSL "$MAVEN_URL" -o "$TMP_TAR"
+    tar -xzf "$TMP_TAR" -C "$DISTS_DIR"
+    rm -f "$TMP_TAR"
+fi
+
+exec "$MAVEN_HOME/bin/mvn" "$@"

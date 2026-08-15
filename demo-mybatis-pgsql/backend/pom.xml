@@ -65,6 +65,16 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- springdoc-openapi: 컨트롤러를 스캔해 OpenAPI 3 스펙을 생성하고 Swagger UI를 제공.
+             /swagger-ui/index.html(UI), /v3/api-docs(JSON 스펙)로 접근 가능.
+             spring-boot-starter-parent의 관리 대상이 아니라서 버전을 직접 지정
+             (javax 계열, Spring Boot 2.7 호환 마지막 1.7.x 라인) -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-ui</artifactId>
+            <version>1.7.0</version>
+        </dependency>
+
         <!-- Lombok: @Data/@Builder/@RequiredArgsConstructor 등 보일러플레이트(getter/setter/생성자) 자동 생성.
              optional=true: 이 라이브러리를 사용하는 다른 프로젝트가 이 프로젝트를 의존할 때 lombok까지
              전이(transitive)되지 않도록 함 -->

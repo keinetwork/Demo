@@ -10,16 +10,16 @@ resultMap 등을 정확히 해석한다. DB나 소스 코드만 있으면 되고
 사용법 (한 줄 실행 - bash/PowerShell 어디서나 그대로 붙여넣기 가능. Windows는 python3 대신
 python 사용):
     # 전체 컬럼(개인정보 구분 없이) 스캔
-    python scripts/pii_mapper_scan.py --mapper-dir src/main/resources/mapper --schema-sql src/main/resources/schema.sql --out docs/pii-encryption/result.csv
+    python scripts/pii_mapper_scan.py --mapper-dir backend/src/main/resources/mapper --schema-sql backend/src/main/resources/schema.sql --out docs/pii-encryption/result.csv
 
     # PII 대상 컬럼만 필터링해서 스캔
-    python scripts/pii_mapper_scan.py --mapper-dir src/main/resources/mapper --schema-sql src/main/resources/schema.sql --targets docs/pii-encryption/pii_targets.txt --out docs/pii-encryption/mapper_pii_columns.csv
+    python scripts/pii_mapper_scan.py --mapper-dir backend/src/main/resources/mapper --schema-sql backend/src/main/resources/schema.sql --targets docs/pii-encryption/pii_targets.txt --out docs/pii-encryption/mapper_pii_columns.csv
 
     # DDL이 table.sql/function.sql/sp.sql/view.sql처럼 여러 파일로 나뉘어 있으면 쉼표로 나열한다.
     # 순서대로 누적되므로 뷰가 참조하는 테이블 파일을 뷰 파일보다 앞에 둘 것(뷰의 SELECT *를 펼치려면
     # 그 시점에 원본 테이블 스키마가 이미 읽혀 있어야 한다). sp.sql은 안 넣어도 무방하다(CALLABLE
     # statement는 schema-sql과 무관하게 별도 경로로 처리됨).
-    python scripts/pii_mapper_scan.py --mapper-dir src/main/resources/mapper --schema-sql table.sql,function.sql,sp.sql,view.sql --out docs/pii-encryption/result.csv
+    python scripts/pii_mapper_scan.py --mapper-dir backend/src/main/resources/mapper --schema-sql backend/src/main/resources/table.sql,backend/src/main/resources/function.sql,backend/src/main/resources/sp.sql,backend/src/main/resources/view.sql --out docs/pii-encryption/result.csv
 
 출력 CSV 컬럼: table_name, column_name, alias_name, io_type, mapper_file_name, mapper_id,
 access_pattern. access_pattern은 컬럼이 "그냥" 참조되지 않고 암호화 설계에 영향을 주는 방식으로
@@ -1021,7 +1021,7 @@ def load_targets(path: Path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--mapper-dir", default="src/main/resources/mapper", help="mapper XML이 있는 디렉토리")
+    parser.add_argument("--mapper-dir", default="backend/src/main/resources/mapper", help="mapper XML이 있는 디렉토리")
     parser.add_argument("--schema-sql", required=True,
                          help="CREATE TABLE/FUNCTION/VIEW DDL이 있는 .sql 경로. 쉼표로 여러 개 줄 수 있다 "
                               "(예: table.sql,function.sql,view.sql - sp.sql처럼 CREATE PROCEDURE만 있는 "

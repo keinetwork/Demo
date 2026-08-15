@@ -110,7 +110,30 @@
       "Bash(echo \"mvn test exit: $?\")",
       "Bash(cmd.exe /c \"where python\")",
       "Bash(cmd.exe /c \"python --version\")",
-      "Bash(cmd.exe /c \"where py\")"
+      "Bash(cmd.exe /c \"where py\")",
+      "Read(//mnt/c/repo_github/keinetwork/Demo/**)",
+      "Bash(nvm ls *)",
+      "Bash(curl -sI --max-time 5 https://registry.npmjs.org/vue)",
+      "Bash(find / -maxdepth 4 -iname \"mvnw\")",
+      "Bash(find / -maxdepth 6 -iname \"apache-maven*\" -type d)",
+      "Bash(/mnt/d/DevTools/mvn/apache-maven-3.9.4/bin/mvn -v)",
+      "Bash(sudo -n apt-get -v)",
+      "Bash(curl -sI --max-time 5 https://api.adoptium.net)",
+      "Bash(mkdir -p /tmp/claude-1000/-mnt-c-repo-github-keinetwork-Demo-demo-mybatis-pgsql/7a0ff9b6-7434-487c-9c1e-4ea16f80b1f3/scratchpad/tools)",
+      "Bash(curl -sL --max-time 120 -o jdk8.tar.gz \"https://api.adoptium.net/v3/binary/latest/8/ga/linux/x64/jdk/hotspot/normal/eclipse\")",
+      "Bash(npm install *)",
+      "Bash(npx vue-cli-service *)",
+      "Bash(set -e)",
+      "Bash(mkdir -p backend)",
+      "Bash(rm -rf target)",
+      "Bash(rm -f package-lock.json)",
+      "Bash(mv frontend/node_modules node_modules)",
+      "Bash(mvn -v)",
+      "Bash(cmd.exe /c \"mvn -v\")",
+      "Read(//mnt/c/Program Files/JetBrains/IntelliJ IDEA 2024.3.1.1/plugins/maven/**)",
+      "Read(//mnt/c/Program Files/JetBrains/IntelliJ IDEA 2024.3.1.1/**)",
+      "Bash(chmod +x *)",
+      "Bash(curl -sI \"https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.zip\")"
     ]
   }
 }
