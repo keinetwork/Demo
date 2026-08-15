@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8"/>
+    <title>PII Mapper 데모 - 관리 화면</title>
+    <!-- Vue 2 (CDN, 빌드 도구 없이 정적 리소스로 서빙) -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js"></script>
+    <link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+<div id="app">
+    <h1>PII Mapper 데모</h1>
+    <p class="subtitle">
+        users / user_profiles / orders / emergency_contacts - 스네이크 케이스 DB 컬럼과 카멜 케이스 VO
+        매핑 방식이 서로 다른 4개 mapper를 화면에서 직접 호출해본다.
+    </p>
+
+    <nav class="tabs">
+        <button v-for="t in tabs" :key="t.id"
+                :class="{active: tab === t.id}"
+                @click="tab = t.id">{{ t.label }}</button>
+    </nav>
+
+    <p v-if="errorMessage" class="error">{{ errorMessage }}</p>
+
+    <!-- 사용자 -->
+    <section v-show="tab === 'users'">
+        <h2>사용자 (users)</h2>
+        <form class="form" @submit.prevent="submitUser">
+            <input v-model="userForm.name" placeholder="이름" required/>
+            <input v-model="userForm.email" placeholder="이메일" required/>
+            <button type="submit">{{ userForm.id ? '수정' : '등록' }}</button>
+            <button type="button" v-if="userForm.id" @click="resetUserForm">취소</button>
+        </form>
+        <table>
+            <thead>
+            <tr><th>id</th><th>name</th><th>email</th><th>createdAt</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr v-for="u in users" :key="u.id">
+                <td>{{ u.id }}</td><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ u.createdAt }}</td>
+                <td>
+                    <button @click="editUser(u)">수정</button>
+                    <button @click="deleteUser(u.id)">삭제</button>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 프로필 -->
+    <section v-show="tab === 'profiles'">
+        <h2>사용자 프로필 (user_profiles)</h2>
+        <p class="hint">전역 언더스코어-카멜 자동 변환 매핑 케이스 (UserProfileMapper.xml, resultMap 없음)</p>
+        <form class="form" @submit.prevent="submitProfile">
+            <input v-model.number="profileForm.userId" type="number" placeholder="userId" required/>
+            <input v-model="profileForm.phoneNumber" placeholder="전화번호"/>
+            <input v-model="profileForm.birthDate" type="date"/>
+            <input v-model="profileForm.addressLine1" placeholder="주소"/>
+            <label><input v-model="profileForm.marketingOptIn" type="checkbox"/> 마케팅 수신 동의</label>
+            <button type="submit">{{ profileEditing ? '수정' : '등록' }}</button>
+            <button type="button" v-if="profileEditing" @click="resetProfileForm">취소</button>
+        </form>
+        <button @click="loadProfiles">전체 조회</button>
+        <table>
+            <thead>
+            <tr><th>userId</th><th>phoneNumber</th><th>birthDate</th><th>addressLine1</th><th>marketingOptIn</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr v-for="p in profiles" :key="p.userId">
+                <td>{{ p.userId }}</td><td>{{ p.phoneNumber }}</td><td>{{ p.birthDate }}</td>
+                <td>{{ p.addressLine1 }}</td><td>{{ p.marketingOptIn }}</td>
+                <td><button @click="editProfile(p)">수정</button></td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 주문 -->
+    <section v-show="tab === 'orders'">
+        <h2>주문 (orders)</h2>
+        <p class="hint">명시적 resultMap + 동적 SQL 매핑 케이스 (OrderMapper.xml)</p>
+        <form class="form" @submit.prevent="submitOrder">
+            <input v-model.number="orderForm.userId" type="number" placeholder="userId" required/>
+            <input v-model="orderForm.customerName" placeholder="고객명" required/>
+            <input v-model="orderForm.customerEmail" placeholder="이메일" required/>
+            <input v-model="orderForm.customerPhone" placeholder="연락처"/>
+            <input v-model="orderForm.shippingAddress" placeholder="배송지" required/>
+            <input v-model.number="orderForm.totalAmount" type="number" step="0.01" placeholder="금액"/>
+            <button type="submit">등록</button>
+        </form>
+        <button @click="loadOrders">전체 조회</button>
+        <table>
+            <thead>
+            <tr><th>id</th><th>customerName</th><th>customerEmail</th><th>customerPhone</th>
+                <th>shippingAddress</th><th>status</th><th>totalAmount</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr v-for="o in orders" :key="o.id">
+                <td>{{ o.id }}</td><td>{{ o.customerName }}</td><td>{{ o.customerEmail }}</td>
+                <td>{{ o.customerPhone }}</td><td>{{ o.shippingAddress }}</td>
+                <td>{{ o.status }}</td><td>{{ o.totalAmount }}</td>
+                <td>
+                    <button @click="viewOrderWithContact(o.id)">JOIN 조회</button>
+                    <button @click="startShippingEdit(o)">배송정보 수정</button>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div v-if="withContactResult" class="panel">
+            <h3>findWithUserContact 결과 (users JOIN, AS 별칭)</h3>
+            <pre>{{ JSON.stringify(withContactResult, null, 2) }}</pre>
+        </div>
+
+        <div v-if="shippingForm" class="panel">
+            <h3>주문 #{{ shippingForm.id }} 배송정보 수정 (PATCH, 부분 갱신)</h3>
+            <form class="form" @submit.prevent="submitShippingUpdate">
+                <input v-model="shippingForm.customerPhone" placeholder="새 연락처 (비우면 유지)"/>
+                <input v-model="shippingForm.shippingAddress" placeholder="새 배송지 (비우면 유지)"/>
+                <button type="submit">저장</button>
+                <button type="button" @click="shippingForm = null">취소</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- 비상연락처 -->
+    <section v-show="tab === 'contacts'">
+        <h2>비상 연락처 (emergency_contacts)</h2>
+        <p class="hint">컬럼명과 무관한 property 리네이밍 매핑 케이스 (contact_name→fullName, contact_phone→phoneNumber)</p>
+        <form class="form" @submit.prevent="submitContact">
+            <input v-model.number="contactForm.userId" type="number" placeholder="userId" required/>
+            <input v-model="contactForm.fullName" placeholder="이름" required/>
+            <input v-model="contactForm.phoneNumber" placeholder="전화번호" required/>
+            <input v-model="contactForm.relation" placeholder="관계"/>
+            <label><input v-model="contactForm.primary" type="checkbox"/> 1순위</label>
+            <button type="submit">등록</button>
+        </form>
+        <div class="form">
+            <input v-model.number="contactSearchUserId" type="number" placeholder="조회할 userId"/>
+            <button @click="loadContacts">조회</button>
+        </div>
+        <table>
+            <thead>
+            <tr><th>id</th><th>userId</th><th>fullName</th><th>phoneNumber</th><th>relation</th><th>primary</th></tr>
+            </thead>
+            <tbody>
+            <tr v-for="c in contacts" :key="c.id">
+                <td>{{ c.id }}</td><td>{{ c.userId }}</td><td>{{ c.fullName }}</td>
+                <td>{{ c.phoneNumber }}</td><td>{{ c.relation }}</td><td>{{ c.primary }}</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</div>
+<script src="/js/app.js"></script>
+</body>
+</html>

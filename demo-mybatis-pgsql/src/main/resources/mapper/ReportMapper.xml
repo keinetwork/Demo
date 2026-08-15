@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    복잡도 스트레스 테스트용 매퍼. mapper_id 하나당 SQL을 의도적으로 크게(50~200줄 이상) 만들어서,
+    이번 세션에서 다룬 패턴들(다중 CTE, 여러 LEFT JOIN, 집계, CASE, 문자열 연결, 동적 <if>/<choose>)이
+    한 statement 안에 전부 섞여도 scripts/pii_mapper_scan.py가 여전히 정확히 스캔하는지 확인한다.
+
+    - findCustomerReport: CTE 6개 + 6-way LEFT JOIN으로 users/user_profiles/orders/order_items/
+      emergency_contacts/payment_methods의 PII를 한 화면에 모으는 "고객 360 리포트" 쿼리.
+    - searchCustomers: <choose>/<if>가 다수 섞인 동적 검색 - 조건마다 다른 테이블/컬럼을 건드린다.
+-->
+<mapper namespace="com.example.demo.mapper.ReportMapper">
+
+    <select id="findCustomerReport" parameterType="map" resultType="map">
+        WITH user_base AS (
+            SELECT id,
+                   name,
+                   email,
+                   created_at
+            FROM users
+            WHERE id = #{userId}
+        ),
+        profile_info AS (
+            SELECT user_id,
+                   phone_number,
+                   birth_date,
+                   address_line1,
+                   marketing_opt_in
+            FROM user_profiles
+        ),
+        order_stats AS (
+            SELECT o.user_id,
+                   COUNT(o.id)                        AS order_count,
+                   SUM(o.total_amount)                 AS total_spent,
+                   MAX(o.created_at)                   AS last_order_at,
+                   MIN(o.created_at)                   AS first_order_at
+            FROM orders o
+            GROUP BY o.user_id
+        ),
+        recent_orders AS (
+            SELECT o.id            AS order_id,
+                   o.user_id,
+                   o.customer_name,
+                   o.customer_email,
+                   o.customer_phone,
+                   o.shipping_address,
+                   o.status
+            FROM orders o
+            WHERE o.created_at > NOW() - INTERVAL '90 days'
+        ),
+        recent_order_items AS (
+            SELECT ro.user_id,
+                   COUNT(oi.id)                        AS recent_item_count,
+                   SUM(oi.quantity * oi.unit_price)     AS recent_item_total
+            FROM recent_orders ro
+                     JOIN order_items oi ON oi.order_id = ro.order_id
+            GROUP BY ro.user_id
+        ),
+        latest_order_snapshot AS (
+            SELECT DISTINCT ON (ro.user_id)
+                   ro.user_id,
+                   ro.customer_name  AS latest_customer_name,
+                   ro.customer_email AS latest_customer_email,
+                   ro.customer_phone AS latest_customer_phone,
+                   ro.shipping_address AS latest_shipping_address
+            FROM recent_orders ro
+            ORDER BY ro.user_id, ro.order_id DESC
+        ),
+        primary_contact AS (
+            SELECT DISTINCT ON (ec.user_id)
+                   ec.user_id,
+                   ec.contact_name,
+                   ec.contact_phone,
+                   ec.relation
+            FROM emergency_contacts ec
+            WHERE ec.is_primary = true
+            ORDER BY ec.user_id, ec.id
+        ),
+        default_payment AS (
+            SELECT DISTINCT ON (pm.user_id)
+                   pm.user_id,
+                   pm.card_holder_name,
+                   pm.card_number_masked,
+                   pm.expiry_month,
+                   pm.expiry_year
+            FROM payment_methods pm
+            WHERE pm.default_method = true
+            ORDER BY pm.user_id, pm.id
+        )
+        SELECT
+            ub.id,
+            ub.name,
+            ub.email,
+            ub.created_at,
+            pi.phone_number,
+            pi.birth_date,
+            pi.address_line1,
+            CASE
+                WHEN pi.marketing_opt_in THEN 'Y'
+                ELSE 'N'
+            END                                         AS marketing_opt_in_label,
+            COALESCE(os.order_count, 0)                  AS order_count,
+            COALESCE(os.total_spent, 0)                  AS total_spent,
+            os.first_order_at,
+            os.last_order_at,
+            COALESCE(oi.recent_item_count, 0)            AS recent_item_count,
+            COALESCE(oi.recent_item_total, 0)             AS recent_item_total,
+            los.latest_customer_name,
+            los.latest_customer_email,
+            los.latest_customer_phone,
+            los.latest_shipping_address,
+            pc.contact_name                              AS primary_contact_name,
+            pc.contact_phone                              AS primary_contact_phone,
+            pc.relation                                    AS primary_contact_relation,
+            dp.card_holder_name                            AS default_card_holder_name,
+            dp.card_number_masked                          AS default_card_number_masked,
+            dp.expiry_month                                AS default_card_expiry_month,
+            dp.expiry_year                                 AS default_card_expiry_year,
+            ub.name || ' &lt;' || ub.email || '>'          AS display_label,
+            CASE
+                WHEN pc.contact_name IS NOT NULL
+                    THEN ub.name || ' / 비상연락처: ' || pc.contact_name
+                ELSE ub.name
+            END                                             AS name_with_emergency_contact
+        FROM user_base ub
+                 LEFT JOIN profile_info pi ON pi.user_id = ub.id
+                 LEFT JOIN order_stats os ON os.user_id = ub.id
+                 LEFT JOIN recent_order_items oi ON oi.user_id = ub.id
+                 LEFT JOIN latest_order_snapshot los ON los.user_id = ub.id
+                 LEFT JOIN primary_contact pc ON pc.user_id = ub.id
+                 LEFT JOIN default_payment dp ON dp.user_id = ub.id
+        ORDER BY ub.id
+    </select>
+
+    <!--
+        동적 다중 조건 검색. <choose>/<if>가 섞여 있어 스캔 도구가 <choose> 가지별 변형과
+        <if> 조건부 컬럼을 모두 놓치지 않는지 확인한다. 조건마다 다른 테이블(users/orders/
+        emergency_contacts/payment_methods)의 PII 컬럼을 건드리도록 구성했다.
+    -->
+    <select id="searchCustomers" parameterType="map" resultType="map">
+        SELECT u.id,
+               u.name,
+               u.email,
+               u.created_at,
+               o.id                AS order_id,
+               o.customer_name,
+               o.customer_email,
+               o.customer_phone,
+               o.shipping_address,
+               o.status,
+               o.total_amount,
+               ec.contact_name,
+               ec.contact_phone,
+               ec.relation,
+               pm.card_holder_name,
+               pm.card_number_masked,
+               u.name || ' (' || u.email || ')' AS search_result_label
+        FROM users u
+                 LEFT JOIN orders o ON o.user_id = u.id
+                 LEFT JOIN emergency_contacts ec ON ec.user_id = u.id
+                 LEFT JOIN payment_methods pm ON pm.user_id = u.id
+        <where>
+            <choose>
+                <when test="searchMode == 'byEmail'">
+                    AND u.email = #{email}
+                </when>
+                <when test="searchMode == 'byOrderContact'">
+                    AND o.customer_email = #{orderEmail}
+                    AND o.customer_phone = #{orderPhone}
+                </when>
+                <when test="searchMode == 'byEmergencyContact'">
+                    AND ec.contact_name = #{contactName}
+                    AND ec.contact_phone = #{contactPhone}
+                </when>
+                <when test="searchMode == 'byCardHolder'">
+                    AND pm.card_holder_name = #{cardHolderName}
+                </when>
+                <otherwise>
+                    AND u.name ILIKE #{namePattern}
+                </otherwise>
+            </choose>
+            <if test="minSpend != null">
+                AND o.total_amount &gt;= #{minSpend}
+            </if>
+            <if test="maxSpend != null">
+                AND o.total_amount &lt;= #{maxSpend}
+            </if>
+            <if test="shippingAddressLike != null">
+                AND o.shipping_address LIKE #{shippingAddressLike}
+            </if>
+            <if test="relation != null">
+                AND ec.relation = #{relation}
+            </if>
+            <if test="statuses != null and statuses.size() > 0">
+                AND o.status IN
+                <foreach collection="statuses" item="status" open="(" separator="," close=")">
+                    #{status}
+                </foreach>
+            </if>
+            <if test="userIds != null and userIds.size() > 0">
+                AND u.id IN
+                <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+                    #{uid}
+                </foreach>
+            </if>
+        </where>
+        ORDER BY u.id
+    </select>
+
+</mapper>

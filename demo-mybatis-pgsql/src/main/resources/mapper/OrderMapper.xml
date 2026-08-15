@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    케이스 2 & 3: 명시적 <resultMap>, 동적 SQL(<set>/<if>), 그리고 users와의 JOIN + SELECT ... AS
+    별칭(resultType=map)을 함께 보여주는 매퍼. 여기에 스캔 도구(scripts/pii_mapper_scan.py)가
+    까다로워하는 SQL 패턴(qualified star, 서브쿼리, CTE)도 추가로 모아뒀다.
+
+    - orderResultMap: 전역 언더스코어 자동변환에 기대지 않고 컬럼<->필드를 하나씩 명시적으로 선언.
+      customer_name/customer_email/customer_phone/shipping_address가 PII, status/total_amount는 비-PII.
+    - findWithUserContact: orders를 users와 JOIN하면서 u.name/u.email을 customer_display_name/
+      customer_display_email이라는, 원래 컬럼명과 전혀 다른 별칭으로 SELECT한다. resultType="map"이라
+      VO 없이 별칭 그대로 키가 되는 Map<String,Object>를 돌려준다 - PII 스캔 시 "alias_name이 column_name과
+      다른" 케이스를 검증하기 위한 예제.
+    - findAllDetailed: `o.*`(alias 붙은 별표)와 명시적 컬럼을 함께 SELECT한다 - 별표가 alias별로
+      스코프 분리되어 정확히 orders 컬럼들로만 펼쳐지는지 확인하는 케이스.
+    - findPaidOrders: FROM 절에 서브쿼리(파생 테이블)를 두고 그 alias로 컬럼을 참조한다.
+    - findRecentOrders: CTE(WITH)로 만든 임시 결과셋에서 컬럼을 조회한다.
+    - updateShippingInfo: <set>/<if>로 customerPhone/shippingAddress가 넘어온 필드만 부분 갱신한다
+      (동적 SQL 안에 조건부로만 등장하는 PII 컬럼 케이스).
+-->
+<mapper namespace="com.example.demo.mapper.OrderMapper">
+
+    <resultMap id="orderResultMap" type="com.example.demo.domain.Order">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="customerName" column="customer_name"/>
+        <result property="customerEmail" column="customer_email"/>
+        <result property="customerPhone" column="customer_phone"/>
+        <result property="shippingAddress" column="shipping_address"/>
+        <result property="status" column="status"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findAll" resultMap="orderResultMap">
+        SELECT id, user_id, customer_name, customer_email, customer_phone,
+               shipping_address, status, total_amount, created_at
+        FROM orders
+        ORDER BY id
+    </select>
+
+    <select id="findById" parameterType="long" resultMap="orderResultMap">
+        SELECT id, user_id, customer_name, customer_email, customer_phone,
+               shipping_address, status, total_amount, created_at
+        FROM orders
+        WHERE id = #{id}
+    </select>
+
+    <select id="findWithUserContact" parameterType="long" resultType="map">
+        SELECT o.id,
+               o.user_id,
+               u.name  AS customer_display_name,
+               u.email AS customer_display_email,
+               o.shipping_address,
+               o.status,
+               o.total_amount
+        FROM orders o
+                 JOIN users u ON o.user_id = u.id
+        WHERE o.id = #{id}
+    </select>
+
+    <!-- qualified star(o.*) + JOIN: o.*는 orders 컬럼 전체로, u.name은 별도 별칭으로 펼쳐져야 한다 -->
+    <select id="findAllDetailed" resultType="map">
+        SELECT o.*,
+               u.name AS customer_display_name
+        FROM orders o
+                 JOIN users u ON o.user_id = u.id
+        ORDER BY o.id
+    </select>
+
+    <!-- FROM 절 서브쿼리: sub는 orders를 status로 거른 파생 테이블이고, sub.customer_name 등은
+         결국 orders.customer_name/orders.customer_email과 같은 컬럼이다 -->
+    <select id="findPaidOrders" resultType="map">
+        SELECT sub.id,
+               sub.customer_name,
+               sub.customer_email,
+               sub.shipping_address
+        FROM (SELECT * FROM orders WHERE status = 'PAID') sub
+        ORDER BY sub.id
+    </select>
+
+    <!-- CTE(WITH): recent는 orders를 기간으로 거른 임시 결과셋이고, 그 안의 customer_name/customer_email/
+         shipping_address는 orders 테이블의 같은 컬럼이다 -->
+    <select id="findRecentOrders" parameterType="map" resultType="map">
+        WITH recent AS (
+            SELECT * FROM orders WHERE created_at > #{since}
+        )
+        SELECT customer_name, customer_email, shipping_address
+        FROM recent
+        ORDER BY customer_name
+    </select>
+
+    <!-- RIGHT JOIN: orders가 아니라 users 기준으로 전체를 조회한다 (주문 없는 사용자도 포함되고,
+         그 경우 o 쪽 컬럼은 NULL) -->
+    <select id="findAllUsersWithOrders" resultType="map">
+        SELECT u.name, u.email, o.customer_phone, o.shipping_address
+        FROM orders o
+                 RIGHT JOIN users u ON o.user_id = u.id
+        ORDER BY u.id
+    </select>
+
+    <!-- 3-way JOIN + GROUP BY 집계: orders를 users/order_items와 함께 묶어 고객별 합계를 낸다.
+         COUNT/SUM 안의 order_items 컬럼(비-PII)과, 그냥 SELECT/GROUP BY되는 PII 컬럼
+         (customer_name/customer_email/account_owner)이 함께 등장하는 케이스. -->
+    <select id="findCustomerOrderSummary" resultType="map">
+        SELECT o.customer_name,
+               o.customer_email,
+               u.name AS account_owner,
+               COUNT(oi.id) AS item_count,
+               SUM(oi.quantity * oi.unit_price) AS order_total
+        FROM orders o
+                 JOIN users u ON o.user_id = u.id
+                 JOIN order_items oi ON oi.order_id = o.id
+        GROUP BY o.id, o.customer_name, o.customer_email, u.name
+        ORDER BY o.id
+    </select>
+
+    <insert id="insert" parameterType="com.example.demo.domain.Order"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (user_id, customer_name, customer_email, customer_phone,
+                             shipping_address, status, total_amount)
+        VALUES (#{userId}, #{customerName}, #{customerEmail}, #{customerPhone},
+                #{shippingAddress}, #{status}, #{totalAmount})
+    </insert>
+
+    <update id="updateShippingInfo" parameterType="com.example.demo.domain.Order">
+        UPDATE orders
+        <set>
+            <if test="customerPhone != null">customer_phone = #{customerPhone},</if>
+            <if test="shippingAddress != null">shipping_address = #{shippingAddress},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- PostgreSQL의 UPDATE ... FROM(조인형 업데이트): WHERE절이 아니라 여기서 다른 테이블의 PII
+         컬럼과 비교한다. 스캔 도구가 이 u.email 바인딩을 orders가 아니라 진짜 소속인 users로
+         정확히 돌리는지 확인하는 케이스(qualify_dml 참고 - 예전엔 UPDATE의 모든 WHERE 컬럼을
+         무조건 target 테이블 걸로 잘못 돌렸었다). -->
+    <update id="updateStatusByUserEmail" parameterType="map">
+        UPDATE orders o
+        SET status = #{status}
+        FROM users u
+        WHERE o.user_id = u.id
+          AND u.email = #{email}
+    </update>
+
+    <!-- WITH ... UPDATE: CTE로 대상 사용자를 먼저 추린 뒤 그 user_id로 주문을 갱신한다. CTE 본문
+         자체의 PII 바인딩(email LIKE)은 바깥 UPDATE의 WHERE절에 직접 나타나지 않으므로,
+         스캔 도구가 CTE 본문을 독립적으로도 스캔하는지 확인하는 케이스(scan_cte_bodies 참고). -->
+    <update id="updateStatusForUsersLike" parameterType="map">
+        WITH matched_users AS (
+            SELECT id FROM users WHERE email LIKE #{emailPattern}
+        )
+        UPDATE orders
+        SET status = #{status}
+        WHERE user_id IN (SELECT id FROM matched_users)
+    </update>
+
+    <!-- 파일을 넘나드는 <include>: EmergencyContactMapper.xml에 정의된 조각(contactPiiColumns)을
+         "namespace.id"로 참조한다 - 스캔 도구가 전체 mapper 디렉터리를 먼저 훑어(collect_global_fragments)
+         다른 파일의 조각까지 찾아내는지 확인하는 케이스. orders와는 무관한 컬럼이지만, 두 테이블을
+         JOIN해서 주문과 함께 비상연락처 정보를 보여주는 실무적인 예시로 구성했다. -->
+    <select id="findOrdersWithContactColumns" resultType="map">
+        SELECT o.id, o.customer_name,
+               <include refid="com.example.demo.mapper.EmergencyContactMapper.contactPiiColumns"/>
+        FROM orders o
+                 JOIN emergency_contacts ec ON ec.user_id = o.user_id
+        ORDER BY o.id
+    </select>
+
+</mapper>

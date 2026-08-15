@@ -3,6 +3,7 @@ package com.example.demo.mapper;
 import com.example.demo.domain.User;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -52,5 +53,40 @@ public interface UserMapper {
      * @return 영향받은 행 수 (대상이 없으면 0)
      */
     int deleteById(Long id);
+
+    /**
+     * PostgreSQL upsert(ON CONFLICT ... DO UPDATE) + RETURNING (스캔 도구 검증용).
+     * resultType="map"으로 RETURNING된 값을 그대로 돌려받는다 - 실제 DB에 대고 검증하진 않았으니
+     * 운영에 쓰기 전에는 실제 실행으로 한 번 확인할 것.
+     */
+    Map<String, Object> upsertByEmail(User user);
+
+    /** MERGE(ON CONFLICT의 대안 upsert 문법) - ON/WHEN MATCHED/WHEN NOT MATCHED 전부 검증 (스캔 도구 검증용). */
+    int mergeByEmail(User user);
+
+    /**
+     * self-join(users a, users b)에서 두 alias 모두 {@code *}로 SELECT하는 케이스 (스캔 도구 검증용).
+     * {@code a.*}/{@code b.*}가 resultType=map에서 같은 키(name/email 등)로 겹쳐 뒤 값이 앞 값을
+     * 덮어쓰므로 실사용 쿼리로는 부적절하다 - 컬럼마다 AS 별칭이 필요하다는 걸 보여주는 예시.
+     */
+    List<Map<String, Object>> findDuplicateEmailPairs();
+
+    /** LEFT JOIN: 프로필이 없는 사용자도 포함해서 조회한다 (스캔 도구 검증용). */
+    List<Map<String, Object>> findAllWithProfile();
+
+    /** &lt;choose&gt;/&lt;when&gt;/&lt;otherwise&gt;로 검색 기준 컬럼이 바뀌는 조회 (스캔 도구 검증용). */
+    List<User> findByDynamicCriteria(Map<String, Object> params);
+
+    /** UNION ALL로 users/emergency_contacts의 이름 계열 PII를 함께 검색한다 (스캔 도구 검증용). */
+    List<Map<String, Object>> searchAllContactNames(Map<String, Object> params);
+
+    /** EXISTS 상관 서브쿼리로 특정 이름의 비상연락처를 가진 사용자를 찾는다 (스캔 도구 검증용). */
+    List<Map<String, Object>> findUsersWithNamedEmergencyContact(Map<String, Object> params);
+
+    /** DB 함수 mask_email()로 email을 마스킹해서 조회한다 (스캔 도구 검증용). */
+    List<Map<String, Object>> findAllWithMaskedEmail();
+
+    /** name/email을 {@code ||}로 이어붙인 표시용 라벨을 만든다 (스캔 도구 검증용, 문자열연결 케이스). */
+    List<Map<String, Object>> findAllWithDisplayLabel();
 
 }

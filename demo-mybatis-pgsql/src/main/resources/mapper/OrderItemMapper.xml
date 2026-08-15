@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- order_items 매퍼. PII 컬럼이 없는 대조군 - 스캔 결과 CSV에는 이 mapper가 전혀 안 나와야 정상이다. -->
+<mapper namespace="com.example.demo.mapper.OrderItemMapper">
+
+    <select id="findByOrderId" parameterType="long" resultType="com.example.demo.domain.OrderItem">
+        SELECT id, order_id, product_name, quantity, unit_price
+        FROM order_items
+        WHERE order_id = #{orderId}
+    </select>
+
+    <insert id="insert" parameterType="com.example.demo.domain.OrderItem"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO order_items (order_id, product_name, quantity, unit_price)
+        VALUES (#{orderId}, #{productName}, #{quantity}, #{unitPrice})
+    </insert>
+
+</mapper>

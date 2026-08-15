@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    payment_methods 매퍼. UserMapper.xml과 같은 케이스 1 스타일(<resultMap> 없이 전역
+    map-underscore-to-camel-case에 의존)이며, "개인정보 = 이름/이메일/주소"에 그치지 않고
+    금융 정보(카드 명의자명/마스킹된 카드번호)도 PII 스캔 대상이라는 걸 보여주는 테이블이다.
+-->
+<mapper namespace="com.example.demo.mapper.PaymentMethodMapper">
+
+    <select id="findByUserId" parameterType="long" resultType="com.example.demo.domain.PaymentMethod">
+        SELECT id, user_id, card_holder_name, card_number_masked, expiry_month, expiry_year, default_method
+        FROM payment_methods
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insert" parameterType="com.example.demo.domain.PaymentMethod"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO payment_methods (user_id, card_holder_name, card_number_masked,
+                                      expiry_month, expiry_year, default_method)
+        VALUES (#{userId}, #{cardHolderName}, #{cardNumberMasked},
+                #{expiryMonth}, #{expiryYear}, #{defaultMethod})
+    </insert>
+
+</mapper>

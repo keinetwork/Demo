@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    케이스 4: resultMap의 property명이 컬럼명 기반 자동 변환 결과와 전혀 다른 경우.
+    contact_name -> fullName, contact_phone -> phoneNumber처럼 컬럼명만 봐서는 property명을
+    유추할 수 없어 map-underscore-to-camel-case 전역 설정으로는 처리가 불가능하고 반드시
+    명시적 <resultMap>이 필요하다. insert의 파라미터 바인딩(#{fullName}, #{phoneNumber})도
+    컬럼명과 다른 이름을 쓴다는 점에서 param 쪽 별칭 탐지 케이스로도 유효하다.
+-->
+<mapper namespace="com.example.demo.mapper.EmergencyContactMapper">
+
+    <!-- 재사용 SQL 조각. 이 파일 안에서는 그냥 id로(<include refid="contactPiiColumns"/>), 다른
+         mapper에서는 "com.example.demo.mapper.EmergencyContactMapper.contactPiiColumns"로 참조한다
+         (OrderMapper.xml의 findOrdersWithContactColumns 참고 - 파일을 넘나드는 include 케이스). -->
+    <sql id="contactPiiColumns">contact_name, contact_phone</sql>
+
+    <resultMap id="emergencyContactResultMap" type="com.example.demo.domain.EmergencyContact">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="fullName" column="contact_name"/>
+        <result property="phoneNumber" column="contact_phone"/>
+        <result property="relation" column="relation"/>
+        <result property="primary" column="is_primary"/>
+    </resultMap>
+
+    <select id="findByUserId" parameterType="long" resultMap="emergencyContactResultMap">
+        SELECT id, user_id, contact_name, contact_phone, relation, is_primary
+        FROM emergency_contacts
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insert" parameterType="com.example.demo.domain.EmergencyContact"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO emergency_contacts (user_id, contact_name, contact_phone, relation, is_primary)
+        VALUES (#{userId}, #{fullName}, #{phoneNumber}, #{relation}, #{primary})
+    </insert>
+
+    <!-- INSERT ... SELECT (VALUES 없이 다른 테이블에서 바로 퍼 담기): "본인을 본인의 비상연락처로도
+         등록" 같은 유틸리티 성격. users.name이 emergency_contacts.contact_name으로 그대로
+         흘러들어가므로, 대상 컬럼(param)과 원본 컬럼(result, users 쪽) 둘 다 잡혀야 정상이다. -->
+    <insert id="insertSelfAsContact" parameterType="map">
+        INSERT INTO emergency_contacts (user_id, contact_name, contact_phone, relation)
+        SELECT id, name, #{phone}, 'self'
+        FROM users
+        WHERE id = #{userId}
+    </insert>
+
+    <!-- 테이블 반환 함수(schema.sql의 find_contacts_by_name): FROM 절에서 마치 테이블처럼 호출된다.
+         스캔 도구가 schema.sql의 "RETURNS TABLE(...)" 선언을 읽어 함수 호출도 원본 컬럼까지
+         추적하는지 확인하는 케이스 (parse_schema_sql의 함수 파싱 부분 참고). -->
+    <select id="findByNameViaFunction" parameterType="map" resultType="map">
+        SELECT f.id, f.user_id, f.contact_name, f.contact_phone
+        FROM find_contacts_by_name(#{name}) AS f
+    </select>
+
+    <!--
+        저장 프로시저 호출(schema.sql의 update_contact_phone). statementType="CALLABLE" +
+        JDBC 이스케이프 문법 {call ...}을 쓴다 - 이건 SQL이 아니라 드라이버 전용 문법이라
+        scripts/pii_mapper_scan.py는 이 문장을 SQL로 파싱하지 않고, #{...} 파라미터 이름만
+        뽑아서 table_name을 "(procedure:update_contact_phone)"으로 표시해 사람이 직접
+        확인하도록 남긴다(프로시저 내부에서 실제로 어떤 컬럼을 건드리는지는 DB 쪽 정의를 봐야 안다).
+    -->
+    <update id="callUpdateContactPhone" statementType="CALLABLE" parameterType="map">
+        {call update_contact_phone(
+            #{id, mode=IN, jdbcType=BIGINT},
+            #{phone, mode=IN, jdbcType=VARCHAR}
+        )}
+    </update>
+
+    <!-- <include>: 위 contactPiiColumns 조각을 그대로 SELECT 목록에 펼친다. -->
+    <select id="findByIdUsingFragment" parameterType="long" resultType="map">
+        SELECT id, <include refid="contactPiiColumns"/>
+        FROM emergency_contacts
+        WHERE id = #{id}
+    </select>
+
+    <!-- 배치 INSERT: <foreach>가 한 번만 펼쳐지지만(반복 횟수는 무시), VALUES (...) 자리에
+         item.fullName/item.phoneNumber 같은 프로퍼티가 그대로 남아 컬럼별 파라미터로 잡힌다. -->
+    <insert id="insertBatch" parameterType="map">
+        INSERT INTO emergency_contacts (user_id, contact_name, contact_phone, relation, is_primary)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.userId}, #{item.fullName}, #{item.phoneNumber}, #{item.relation}, #{item.primary})
+        </foreach>
+    </insert>
+
+    <!-- IN절 + <foreach>: contact_name 목록으로 한 번에 검색한다. 스캔 도구가 IN절 바인딩도
+         =/LIKE/범위비교와 별개로 access_pattern="IN절"로 잡아내는지 확인하는 케이스. -->
+    <select id="findByContactNames" parameterType="map" resultType="map">
+        SELECT id, user_id, contact_name, contact_phone
+        FROM emergency_contacts
+        WHERE contact_name IN
+        <foreach collection="names" item="name" open="(" separator="," close=")">
+            #{name}
+        </foreach>
+    </select>
+
+    <!-- JOIN ... ON 절 안의 PII 바인딩: WHERE가 아니라 조인 조건 자체에 #{}가 들어있다.
+         스캔 도구가 WHERE뿐 아니라 JOIN ON/HAVING까지 조건절 바인딩으로 잡아내는지 확인하는 케이스
+         (scan_condition_bindings 참고). -->
+    <select id="findUsersWithContactNameJoin" parameterType="map" resultType="map">
+        SELECT u.id, u.name
+        FROM users u
+                 JOIN emergency_contacts ec ON ec.user_id = u.id AND ec.contact_name = #{contactName}
+    </select>
+
+</mapper>

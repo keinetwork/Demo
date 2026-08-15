@@ -1,0 +1,15 @@
+# scripts/pii_mapper_scan.py 의 --targets 로 넘기는 암호화 대상 컬럼 목록.
+# 한 줄에 "table.column" 하나씩. #으로 시작하면 주석, 빈 줄은 무시.
+users.name
+users.email
+user_profiles.phone_number
+user_profiles.birth_date
+user_profiles.address_line1
+orders.customer_name
+orders.customer_email
+orders.customer_phone
+orders.shipping_address
+emergency_contacts.contact_name
+emergency_contacts.contact_phone
+payment_methods.card_holder_name
+payment_methods.card_number_masked

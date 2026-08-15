@@ -1,0 +1,48 @@
+body {
+    font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+    max-width: 960px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    color: #222;
+}
+
+h1 { margin-bottom: 0.25rem; }
+
+.subtitle { color: #666; margin-top: 0; }
+
+.tabs { display: flex; gap: 0.5rem; margin: 1rem 0; }
+
+.tabs button {
+    padding: 0.5rem 1rem;
+    border: 1px solid #ccc;
+    background: #f5f5f5;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.tabs button.active { background: #333; color: #fff; border-color: #333; }
+
+.hint { color: #888; font-size: 0.9rem; }
+
+.error {
+    background: #fdecea;
+    color: #b3261e;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+}
+
+.form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+
+.form input { padding: 0.4rem; border: 1px solid #ccc; border-radius: 4px; }
+
+table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+
+th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; font-size: 0.9rem; }
+
+th { background: #fafafa; }
+
+.panel { border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #fafafa; }
+
+pre { white-space: pre-wrap; word-break: break-all; }
+
+button { cursor: pointer; }

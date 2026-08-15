@@ -58,4 +58,134 @@
         WHERE id = #{id}
     </delete>
 
+    <!--
+        PostgreSQL upsert(ON CONFLICT ... DO UPDATE) + RETURNING을 함께 쓰는 케이스.
+        - ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name: INSERT의 VALUES 목록만 봐서는
+          안 보이는 "쓰기 경로"가 하나 더 있다는 뜻 - name이 조건부로 다시 쓰인다.
+        - RETURNING id, name, email: UPDATE/DELETE와 마찬가지로 INSERT도 RETURNING으로 결과를
+          바로 돌려받을 수 있다 - 이 컬럼들은 SELECT 없이도 "조회 결과(result)"로 나간다.
+        스캔 도구가 이 두 경로를 모두 찾아내는지 확인하는 케이스 (scan_on_conflict/scan_returning 참고).
+        <select>로 선언한 이유: MyBatis DTD는 <insert>에 resultType 속성을 허용하지 않는다
+        (컴파일이 아니라 XML 파싱 시점에 걸림 - MapperXmlSanityTest가 이 실수를 잡아냈다).
+        RETURNING으로 여러 컬럼을 받아 매핑하려면 <select> + resultType으로 선언하는 게
+        MyBatis + PostgreSQL 조합에서 흔히 쓰는 방식이다(내용은 그대로 INSERT문).
+    -->
+    <select id="upsertByEmail" parameterType="com.example.demo.domain.User" resultType="map">
+        INSERT INTO users (name, email)
+        VALUES (#{name}, #{email})
+        ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+        RETURNING id, name, email
+    </select>
+
+    <!--
+        MERGE(PostgreSQL 15+/Oracle/SQL Server의 또 다른 upsert 문법) - ON CONFLICT와 달리
+        USING 절에 별도 source가 있고 WHEN MATCHED/NOT MATCHED로 분기한다. MyBatis에 MERGE 전용
+        태그가 없어 <update>에 그냥 SQL로 적는다. 스캔 도구가 ON 조건, WHEN MATCHED THEN UPDATE SET,
+        WHEN NOT MATCHED THEN INSERT 세 군데 모두에서 PII 파라미터를 찾아내는지 확인하는 케이스
+        (scan_merge 참고).
+    -->
+    <update id="mergeByEmail" parameterType="com.example.demo.domain.User">
+        MERGE INTO users t
+        USING (SELECT #{name} AS name, #{email} AS email) s
+        ON t.email = s.email
+        WHEN MATCHED THEN UPDATE SET name = s.name
+        WHEN NOT MATCHED THEN INSERT (name, email) VALUES (s.name, s.email)
+    </update>
+
+    <!--
+        self-join에서 서로 다른 alias로 같은 테이블(users)의 '*'를 두 번 쓰는 케이스.
+        중복 이메일 후보를 찾는 용도로, a/b 두 alias 모두 PII 컬럼(name/email)을 담고 있어
+        스캔 도구가 alias별로 컬럼을 올바르게 users 테이블로 되돌리는지 확인하기 좋다.
+        주의(실무 함정): resultType="map"에서 a.*/b.*가 둘 다 "name"/"email"이라는 같은 키로 펼쳐지므로,
+        실제 실행하면 b 쪽 값이 a 쪽 값을 덮어써 버린다 - 이런 쿼리는 반드시 컬럼마다 AS로
+        별칭을 구분해줘야 한다는 걸 보여주기 위해 일부러 그대로 남겨둔 예시다.
+    -->
+    <select id="findDuplicateEmailPairs" resultType="map">
+        SELECT a.*, b.*
+        FROM users a
+                 JOIN users b ON a.id != b.id AND a.email = b.email
+        ORDER BY a.id
+    </select>
+
+    <!-- LEFT JOIN: 프로필이 없는 사용자도 결과에 포함한다 (p 쪽 컬럼은 NULL로 나옴) -->
+    <select id="findAllWithProfile" resultType="map">
+        SELECT u.id, u.name, u.email, p.phone_number, p.address_line1
+        FROM users u
+                 LEFT JOIN user_profiles p ON u.id = p.user_id
+        ORDER BY u.id
+    </select>
+
+    <!--
+        DB는 PostgreSQL이지만, Oracle에서 마이그레이션하며 정리되지 못한 문법이 그대로 남아있는 경우의
+        예시. NVL()은 PostgreSQL 표준 함수가 아니라 Oracle 전용이라(PostgreSQL은 COALESCE를 쓴다),
+        orafce 같은 호환 확장을 깔지 않은 이 프로젝트 DB에 대고 실제로 실행하면
+        "function nvl(character varying, unknown) does not exist" 에러가 난다.
+        그래서 이 statement는 일부러 UserMapper.java 인터페이스에 대응 메서드를 두지 않았다
+        (Java 코드에서 호출 불가 - 순수하게 scripts/pii_mapper_scan.py가 함수 호출 안에 감싸인
+        PII 컬럼(email)까지 찾아내는지 검증하는 용도).
+        전환 작업 시 NVL(email, 'N/A') -> COALESCE(email, 'N/A')로 바꾸면 그대로 PostgreSQL에서 동작한다.
+    -->
+    <select id="findAllWithMaskedEmailLegacy" resultType="map">
+        SELECT id, name, NVL(email, 'N/A') AS email_display
+        FROM users
+        ORDER BY id
+    </select>
+
+    <!--
+        <choose>/<when>/<otherwise>: 조건에 따라 검색 기준 컬럼 자체가 바뀐다(email 우선, 없으면
+        name, 둘 다 없으면 전체). 런타임엔 가지 하나만 선택되지만, 스캔 도구는 가지별로 변형 SQL을
+        만들어 각각 스캔한 뒤 합친다(scripts/pii_mapper_scan.py의 choose_branch_overrides 참고) -
+        그래서 이 statement는 email/name 두 PII 컬럼 모두 WHERE 조건절로 잡혀야 정상이다.
+    -->
+    <select id="findByDynamicCriteria" parameterType="map" resultType="com.example.demo.domain.User">
+        SELECT id, name, email, created_at
+        FROM users
+        WHERE
+        <choose>
+            <when test="email != null">email = #{email}</when>
+            <when test="name != null">name = #{name}</when>
+            <otherwise>1 = 1</otherwise>
+        </choose>
+    </select>
+
+    <!-- UNION ALL: 서로 다른 두 테이블(users, emergency_contacts)의 이름 계열 PII를 한 결과셋으로 합친다.
+         스캔 도구가 UNION의 각 가지를 독립적으로 원본 테이블까지 추적하는지 확인하는 케이스. -->
+    <select id="searchAllContactNames" parameterType="map" resultType="map">
+        SELECT id, name AS display_name, 'user' AS source_type
+        FROM users
+        WHERE name ILIKE #{keyword}
+        UNION ALL
+        SELECT ec.id, ec.contact_name AS display_name, 'emergency_contact' AS source_type
+        FROM emergency_contacts ec
+        WHERE ec.contact_name ILIKE #{keyword}
+    </select>
+
+    <!-- EXISTS 상관 서브쿼리: WHERE 절 안에서 다른 테이블(emergency_contacts)의 PII 컬럼과 비교한다.
+         스캔 도구가 중첩된 서브쿼리 안의 WHERE 바인딩까지 원본 테이블로 추적하는지 확인하는 케이스. -->
+    <select id="findUsersWithNamedEmergencyContact" parameterType="map" resultType="map">
+        SELECT u.id, u.name, u.email
+        FROM users u
+        WHERE EXISTS (
+            SELECT 1 FROM emergency_contacts ec
+            WHERE ec.user_id = u.id AND ec.contact_name = #{contactName}
+        )
+    </select>
+
+    <!-- DB 함수(스칼라): mask_email()이 email을 감싸서 마스킹한다. NVL 예제와 달리 실제 PostgreSQL에
+         정의된 함수라 정상 실행된다 - 함수 호출 안의 PII 컬럼을 찾아내는지 확인하는 케이스. -->
+    <select id="findAllWithMaskedEmail" resultType="map">
+        SELECT id, name, mask_email(email) AS email_masked
+        FROM users
+        ORDER BY id
+    </select>
+
+    <!-- 문자열 연결(||): VARCHAR PII 컬럼은 범위비교(&lt;,&gt;)보다 이렇게 다른 문자열과 이어붙여
+         "표시용 라벨"을 만드는 경우가 훨씬 흔하다. 암호화하면 연결 결과가 그대로 깨지므로
+         access_pattern에 "문자열연결"로 별도 표시된다(scripts/pii_mapper_scan.py 참고). -->
+    <select id="findAllWithDisplayLabel" resultType="map">
+        SELECT id, name || ' &lt;' || email || '&gt;' AS display_label
+        FROM users
+        ORDER BY id
+    </select>
+
 </mapper>

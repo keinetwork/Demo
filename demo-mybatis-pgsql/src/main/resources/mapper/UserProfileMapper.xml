@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    케이스 1: UserMapper.xml과 같은 스타일 - <resultMap> 없이 resultType(VO)만 사용하고,
+    application.properties의 mybatis.configuration.map-underscore-to-camel-case=true 설정이
+    phone_number -> phoneNumber, birth_date -> birthDate, marketing_opt_in -> marketingOptIn 등
+    스네이크 케이스 컬럼 <-> 카멜 케이스 필드 매핑을 자동으로 처리한다.
+    PII 컬럼(phone_number/birth_date/address_line1)과 비-PII 컬럼(marketing_opt_in)이 섞여 있다.
+-->
+<mapper namespace="com.example.demo.mapper.UserProfileMapper">
+
+    <select id="findAll" resultType="com.example.demo.domain.UserProfile">
+        SELECT * FROM user_profiles ORDER BY id
+    </select>
+
+    <select id="findByUserId" parameterType="long" resultType="com.example.demo.domain.UserProfile">
+        SELECT id, user_id, phone_number, birth_date, address_line1, marketing_opt_in, created_at
+        FROM user_profiles
+        WHERE user_id = #{userId}
+    </select>
+
+    <insert id="insert" parameterType="com.example.demo.domain.UserProfile"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_profiles (user_id, phone_number, birth_date, address_line1, marketing_opt_in)
+        VALUES (#{userId}, #{phoneNumber}, #{birthDate}, #{addressLine1}, #{marketingOptIn})
+    </insert>
+
+    <update id="update" parameterType="com.example.demo.domain.UserProfile">
+        UPDATE user_profiles
+        SET phone_number     = #{phoneNumber},
+            birth_date       = #{birthDate},
+            address_line1    = #{addressLine1},
+            marketing_opt_in = #{marketingOptIn}
+        WHERE user_id = #{userId}
+    </update>
+
+    <!-- INNER JOIN: users와 user_profiles 둘 다 매칭되는 행만 조회한다 (프로필 없는 사용자는 제외) -->
+    <select id="findAllWithUser" resultType="map">
+        SELECT u.id, u.name, u.email, p.phone_number, p.address_line1
+        FROM users u
+                 INNER JOIN user_profiles p ON u.id = p.user_id
+        ORDER BY u.id
+    </select>
+
+    <!--
+        <bind>와 CDATA를 함께 쓰는 케이스.
+        - <bind name="namePattern" value="...">는 OGNL로 LIKE 패턴 문자열을 만들어 파라미터
+          이름(namePattern)에 바인딩한다. SQL 텍스트 자체에는 아무것도 안 남기고, 이후 #{namePattern}
+          으로 참조된다 - 이 원본 컬럼(u.name)은 그대로 SELECT 절/LIKE 비교에서 잡힌다.
+        - <![CDATA[ >= ]]>/<![CDATA[ <= ]]>는 XML에서 '<'/'>'를 그대로 못 쓰기 때문에 쓰는 이스케이프로,
+          파싱 시점엔 그냥 일반 텍스트로 합쳐진다(별도 처리 불필요) - birth_date 범위 조건이 정상적으로
+          조건절 바인딩(param)으로 잡히는지 확인하는 케이스.
+    -->
+    <select id="searchByBirthDateRange" parameterType="map" resultType="map">
+        <bind name="namePattern" value="'%' + keyword + '%'"/>
+        SELECT up.user_id, up.birth_date, u.name
+        FROM user_profiles up
+                 JOIN users u ON u.id = up.user_id
+        WHERE up.birth_date <![CDATA[ >= ]]> #{startDate}
+          AND up.birth_date <![CDATA[ <= ]]> #{endDate}
+          AND u.name LIKE #{namePattern}
+    </select>
+
+</mapper>
